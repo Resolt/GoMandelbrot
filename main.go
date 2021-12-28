@@ -45,8 +45,8 @@ func main() {
 	aspect := &aspect{
 		REStart: -2,
 		REEnd:   1,
-		IMStart: -1,
-		IMEnd:   1,
+		IMStart: -1.5,
+		IMEnd:   1.5,
 	}
 
 	drawMandelbrot(surface, aspect)
@@ -91,8 +91,6 @@ func drawMandelbrot(s *sdl.Surface, a *aspect) {
 	defer s.Unlock()
 	s.FillRect(nil, 0)
 
-	tic := time.Now()
-
 	var rows [][]point
 
 	for y := int32(0); y < s.H; y++ {
@@ -103,8 +101,8 @@ func drawMandelbrot(s *sdl.Surface, a *aspect) {
 		rows = append(rows, row)
 	}
 
+	ticCalc := time.Now()
 	var wg sync.WaitGroup
-
 	for _, row := range rows {
 		wg.Add(1)
 		go func(_row []point) {
@@ -112,17 +110,16 @@ func drawMandelbrot(s *sdl.Surface, a *aspect) {
 			setMandelbrotColorSlice(_row, a, s)
 		}(row)
 	}
-
 	wg.Wait()
+	fmt.Printf("Calc time: %v\n", time.Since(ticCalc))
 
+	ticDraw := time.Now()
 	for _, row := range rows {
 		for _, p := range row {
 			s.Set(int(p.X), int(p.Y), p.getColor())
 		}
 	}
-
-	t := time.Since(tic)
-	fmt.Printf("Draw time: %v\n", t)
+	fmt.Printf("Draw time: %v\n", time.Since(ticDraw))
 }
 
 func setMandelbrotColorSlice(points []point, a *aspect, s *sdl.Surface) {
@@ -135,7 +132,11 @@ func getMandelbrotColor(x int32, y int32, a *aspect, s *sdl.Surface) (c uint8) {
 	real := a.REStart + (float64(x)/float64(s.W))*(a.REEnd-a.REStart)
 	imag := a.IMStart + (float64(y)/float64(s.H))*(a.IMEnd-a.IMStart)
 	m := mandelbrot(complex(real, imag))
-	c = uint8(255 * m / maxIter)
+	if m == maxIter {
+		c = 0
+	} else {
+		c = uint8(255 * m / maxIter)
+	}
 	return
 }
 
