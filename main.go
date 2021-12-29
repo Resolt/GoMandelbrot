@@ -37,28 +37,15 @@ func main() {
 	}
 	defer window.Destroy()
 
-	// renderer, err := window.GetRenderer()
 	renderer, err := sdl.CreateRenderer(
 		window,
 		-1,
-		// sdl.RENDERER_ACCELERATED,
-		sdl.RENDERER_TARGETTEXTURE,
+		sdl.RENDERER_ACCELERATED,
 	)
 	if err != nil {
 		log.Panic(err)
 	}
 	defer renderer.Destroy()
-
-	// surface, err := window.GetSurface()
-	// if err != nil {
-	// 	log.Panic(err)
-	// }
-
-	// texture, err := renderer.CreateTextureFromSurface(surface)
-	// if err != nil {
-	// 	log.Panic(err)
-	// }
-	// defer texture.Destroy()
 
 	texture, err := renderer.CreateTexture(
 		sdl.PIXELFORMAT_RGB888,
@@ -67,7 +54,6 @@ func main() {
 		height,
 	)
 	defer texture.Destroy()
-	renderer.SetRenderTarget(texture)
 
 	rect := &sdl.Rect{X: 0, Y: 0, W: width, H: height}
 
@@ -81,9 +67,6 @@ func main() {
 	drawMandelbrot(texture, rect, aspect)
 	renderer.Copy(texture, rect, rect)
 	renderer.Present()
-
-	// window.UpdateSurface()
-	// window.UpdateSurface()
 
 	running := true
 	for running {
@@ -159,7 +142,7 @@ func drawMandelbrot(t *sdl.Texture, r *sdl.Rect, a *aspect) {
 			pixels[p.Y*width+p.X+2] = byte(b)
 		}
 	}
-	err := t.Update(r, pixels, 3)
+	err := t.Update(r, pixels, int(width)*3)
 	if err != nil {
 		log.Panic(err)
 	}
