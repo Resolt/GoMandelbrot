@@ -37,10 +37,25 @@ func main() {
 	}
 	defer window.Destroy()
 
-	surface, err := window.GetSurface()
+	renderer, err := sdl.CreateRenderer(
+		window,
+		-1,
+		sdl.RENDERER_ACCELERATED,
+	)
 	if err != nil {
 		log.Panic(err)
 	}
+	defer renderer.Destroy()
+
+	texture, err := renderer.CreateTexture(
+		sdl.PIXELFORMAT_RGB888,
+		sdl.TEXTUREACCESS_STATIC,
+		width,
+		height,
+	)
+	defer texture.Destroy()
+
+	rect := &sdl.Rect{X: 0, Y: 0, W: width, H: height}
 
 	aspect := &aspect{
 		REStart: -2,
@@ -49,8 +64,9 @@ func main() {
 		IMEnd:   1.5,
 	}
 
-	drawMandelbrot(surface, aspect)
-	window.UpdateSurface()
+	drawMandelbrot(texture, rect, aspect)
+	renderer.Copy(texture, rect, rect)
+	renderer.Present()
 
 	running := true
 	for running {
@@ -82,20 +98,23 @@ func (p *point) setC(c uint8) {
 	p.C = c
 }
 
-func (p *point) getColor() color.Color {
-	return color.RGBA{p.C, p.C, p.C, 0}
+func (p *point) getRGB() (r uint8, g uint8, b uint8) {
+	r, g, b = p.C, p.C, p.C
+	return
 }
 
-func drawMandelbrot(s *sdl.Surface, a *aspect) {
-	s.Lock()
-	defer s.Unlock()
-	s.FillRect(nil, 0)
+func (p *point) getColor() color.Color {
+	r, g, b := p.getRGB()
+	return color.RGBA{r, g, b, 0}
+}
+
+func drawMandelbrot(t *sdl.Texture, r *sdl.Rect, a *aspect) {
 
 	var rows [][]point
 
-	for y := int32(0); y < s.H; y++ {
-		row := make([]point, s.W)
-		for x := int32(0); x < s.W; x++ {
+	for y := int32(0); y < height; y++ {
+		row := make([]point, width)
+		for x := int32(0); x < width; x++ {
 			row[x] = point{X: x, Y: y}
 		}
 		rows = append(rows, row)
@@ -107,30 +126,38 @@ func drawMandelbrot(s *sdl.Surface, a *aspect) {
 		wg.Add(1)
 		go func(_row []point) {
 			defer wg.Done()
-			setMandelbrotColorSlice(_row, a, s)
+			setMandelbrotColorSlice(_row, a)
 		}(row)
 	}
 	wg.Wait()
 	fmt.Printf("Calc time: %v\n", time.Since(ticCalc))
 
 	ticDraw := time.Now()
+	pixels := make([]byte, width*height*3)
 	for _, row := range rows {
 		for _, p := range row {
-			s.Set(int(p.X), int(p.Y), p.getColor())
+			r, g, b := p.getRGB()
+			pixels[p.Y*width+p.X] = byte(r)
+			pixels[p.Y*width+p.X+1] = byte(g)
+			pixels[p.Y*width+p.X+2] = byte(b)
 		}
+	}
+	err := t.Update(r, pixels, int(width)*3)
+	if err != nil {
+		log.Panic(err)
 	}
 	fmt.Printf("Draw time: %v\n", time.Since(ticDraw))
 }
 
-func setMandelbrotColorSlice(points []point, a *aspect, s *sdl.Surface) {
+func setMandelbrotColorSlice(points []point, a *aspect) {
 	for i, p := range points {
-		points[i].setC(getMandelbrotColor(p.X, p.Y, a, s))
+		points[i].setC(getMandelbrotColor(p.X, p.Y, a))
 	}
 }
 
-func getMandelbrotColor(x int32, y int32, a *aspect, s *sdl.Surface) (c uint8) {
-	real := a.REStart + (float64(x)/float64(s.W))*(a.REEnd-a.REStart)
-	imag := a.IMStart + (float64(y)/float64(s.H))*(a.IMEnd-a.IMStart)
+func getMandelbrotColor(x int32, y int32, a *aspect) (c uint8) {
+	real := a.REStart + (float64(x)/float64(width))*(a.REEnd-a.REStart)
+	imag := a.IMStart + (float64(y)/float64(height))*(a.IMEnd-a.IMStart)
 	m := mandelbrot(complex(real, imag))
 	if m == maxIter {
 		c = 0
